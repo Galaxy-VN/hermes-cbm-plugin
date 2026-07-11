@@ -60,7 +60,7 @@ plugins:
 |------|-------------|----------|
 | `cbm_index` | Index a repository into the graph | — |
 | `cbm_search` | Structural search by label, name, degree | `search_files` / grep |
-| `cbm_search_code` | Graph-augmented grep (deduplicates into functions) | `search_files` |
+| `cbm_search_code` | Graph-augmented grep (deduplicates into functions). Supports `regex=true` for alternation patterns | `search_files` |
 | `cbm_trace` | Call graph BFS traversal (callers/callees) | `grep` for function calls |
 | `cbm_architecture` | Languages, packages, clusters, hotspots | Manual exploration |
 | `cbm_query` | Cypher-like graph queries | Complex grep chains |
@@ -87,6 +87,8 @@ After enabling, load the skill for detailed usage guidance:
 ```
 skill_view("cbm:cbm-intelligence")
 ```
+
+**Note:** The skill lives inside the plugin's `skills/` directory. If `skill_view` doesn't find it, ensure the `skills/` directory was copied during installation (see Troubleshooting).
 
 ## Slash Command
 
@@ -169,3 +171,32 @@ Python, TypeScript, JavaScript, JSX, TSX, PHP, C#, Go, C, C++, Java, Kotlin, Rus
 ## License
 
 MIT
+
+## Troubleshooting
+
+### Bundled skill not showing
+
+The plugin's `skills/` directory must exist at `~/.hermes/plugins/cbm/skills/`. If missing:
+
+```bash
+# Copy from source repo
+cp -r skills/ ~/.hermes/plugins/cbm/skills/
+```
+
+Then restart Hermes. The skill registers via `ctx.register_skill()` in `__init__.py`.
+
+### `cbm_search_code` with `|` returns 0
+
+Set `regex=true` — the pipe is matched literally by default:
+
+```
+cbm_search_code(pattern="foo|bar", regex=true)
+```
+
+### `cbm_query` returns 0 for Java projects
+
+Use `Method` label, not `Function`:
+
+```
+cbm_query(query="MATCH (f:Method)-[:CALLS]->(g:Method) WHERE f.name = 'main' RETURN g.name")
+```

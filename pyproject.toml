@@ -29,3 +29,6 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["cbm*"]
+
+[tool.setuptools.package-data]
+"*" = ["skills/**/*"]
