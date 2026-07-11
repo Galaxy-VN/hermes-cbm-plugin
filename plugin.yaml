@@ -1,7 +1,7 @@
 name: cbm
 version: 1.0.0
 description: "Codebase intelligence via codebase-memory-mcp — graph-backed search, call tracing, architecture analysis. Replaces grep with structural queries."
-author: "User"
+author: "GalaxyVN"
 license: MIT
 repo: ""
 provides_tools:
