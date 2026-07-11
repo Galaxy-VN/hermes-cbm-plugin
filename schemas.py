@@ -101,6 +101,10 @@ SEARCH_CODE = {
                 "type": "integer",
                 "description": "Max results. Default 10.",
             },
+            "regex": {
+                "type": "boolean",
+                "description": "Treat pattern as regex (supports |, *, +, etc.). Default false.",
+            },
         },
         "required": ["pattern"],
     },

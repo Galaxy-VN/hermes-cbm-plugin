@@ -154,6 +154,8 @@ def search_code(args: dict, **kwargs) -> str:
         payload["path_filter"] = args["path_filter"]
     payload["mode"] = args.get("mode", "compact")
     payload["limit"] = args.get("limit", 10)
+    if args.get("regex") is not None:
+        payload["regex"] = args["regex"]
 
     return _run_cbm({**payload, "_cli_tool": "search_code"})
 
