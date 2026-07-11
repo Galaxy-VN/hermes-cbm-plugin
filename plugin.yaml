@@ -1,0 +1,22 @@
+name: cbm
+version: 1.0.0
+description: "Codebase intelligence via codebase-memory-mcp — graph-backed search, call tracing, architecture analysis. Replaces grep with structural queries."
+author: "User"
+license: MIT
+repo: ""
+provides_tools:
+  - cbm_index
+  - cbm_search
+  - cbm_search_code
+  - cbm_trace
+  - cbm_architecture
+  - cbm_query
+  - cbm_code_snippet
+  - cbm_dead_code
+  - cbm_changes
+  - cbm_schema
+  - cbm_projects
+  - cbm_delete
+provides_hooks:
+  - on_session_start
+  - pre_llm_call

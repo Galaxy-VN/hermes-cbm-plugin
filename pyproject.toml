@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "hermes-cbm-plugin"
+version = "1.0.0"
+description = "Hermes Agent plugin for codebase-memory-mcp — graph-backed code intelligence replacing grep"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "rewasa"},
+]
+keywords = ["hermes", "hermes-agent", "codebase-memory", "mcp", "code-intelligence", "graph"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Code Generators",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[tool.setuptools.packages.find]
+include = ["cbm*"]
