@@ -35,7 +35,7 @@ Invoke-WebRequest -Uri https://raw.githubusercontent.com/DeusData/codebase-memor
 ### Quick install (from GitHub)
 
 ```bash
-hermes plugins install rewasa/hermes-cbm-plugin
+hermes plugins install Galaxy-VN/hermes-cbm-plugin
 hermes plugins enable cbm
 ```
 
