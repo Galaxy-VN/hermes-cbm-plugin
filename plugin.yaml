@@ -17,6 +17,8 @@ provides_tools:
   - cbm_schema
   - cbm_projects
   - cbm_delete
+provides_skills:
+  - cbm-intelligence
 provides_hooks:
   - on_session_start
   - pre_llm_call
