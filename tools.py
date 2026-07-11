@@ -39,9 +39,14 @@ def _find_binary() -> Optional[str]:
 
     return None
 
+def _get_project_from_cwd() -> str:
+    """Convert CWD to project name: path separators → dashes."""
+    return os.getcwd().replace("\\", "-").replace("/", "-").replace(":", "")
 
 def _run_cbm(args: dict, timeout: int = 30) -> str:
     """Run a codebase-memory-mcp CLI command and return JSON output."""
+    if "project" not in args:
+        args["project"] = _get_project_from_cwd()
     binary = _find_binary()
     if not binary:
         return json.dumps({
