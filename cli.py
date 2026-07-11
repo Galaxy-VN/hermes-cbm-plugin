@@ -57,8 +57,8 @@ def _handle_cbm_slash(raw_args: str) -> Optional[str]:
                 lines.append(f"  Indexed projects: {len(project_list)}")
                 for p in project_list[:10]:
                     name = p.get("name", "?")
-                    nodes = p.get("node_count", "?")
-                    edges = p.get("edge_count", "?")
+                    nodes = p.get("nodes", "?")
+                    edges = p.get("edges", "?")
                     lines.append(f"    {name}: {nodes} nodes, {edges} edges")
             else:
                 lines.append("  Projects: unable to list")

@@ -5,10 +5,44 @@ dead code detection, call graph traversal. 158 languages, sub-ms queries.
 """
 import logging
 import os
+import subprocess
+import socket
 from typing import Any, Optional
 from pathlib import Path
 
 logger = logging.getLogger("cbm")
+
+# Track the UI server process
+_ui_process: Optional[subprocess.Popen] = None
+
+
+def _is_port_in_use(port: int) -> bool:
+    """Check if a port is already listening."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        try:
+            s.connect(("127.0.0.1", port))
+            return True
+        except (ConnectionRefusedError, OSError):
+            return False
+
+
+def _start_ui_server(binary: str, port: int = 9749) -> None:
+    """Start the MCP server in background for web UI access."""
+    global _ui_process
+    if _is_port_in_use(port):
+        logger.info("CBM UI already running on port %d", port)
+        return
+    try:
+        _ui_process = subprocess.Popen(
+            [binary, "--ui=true", f"--port={port}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        logger.info("CBM UI server started on http://localhost:%d (pid %d)", port, _ui_process.pid)
+    except Exception as e:
+        logger.warning("CBM: failed to start UI server: %s", e)
 
 
 def register(ctx: Any) -> None:
@@ -49,16 +83,32 @@ def register(ctx: Any) -> None:
         description="Codebase intelligence: graph search, call tracing, architecture.",
     )
 
-    # ── Hook: auto-index on session start ───────────────────────────────
+    # ── Hook: auto-index on session start ────────────────────────────
     def _on_session_start(**kwargs: Any) -> None:
         """Auto-index the current project when a session starts."""
         from .auto_index import auto_index_project
+        from .tools import _find_binary
         try:
             auto_index_project()
         except Exception as e:
             logger.debug("CBM auto-index failed: %s", e)
 
+        # Start UI server so http://localhost:9749 works
+        binary = _find_binary()
+        if binary:
+            _start_ui_server(binary)
+
     ctx.register_hook("on_session_start", _on_session_start)
+
+    # ── Hook: stop UI server on shutdown ─────────────────────────────
+    def _on_shutdown(**kwargs: Any) -> None:
+        global _ui_process
+        if _ui_process and _ui_process.poll() is None:
+            _ui_process.terminate()
+            logger.info("CBM UI server stopped (pid %d)", _ui_process.pid)
+            _ui_process = None
+
+    ctx.register_hook("on_shutdown", _on_shutdown)
 
     # ── Hook: inject graph context before LLM calls ────────────────────
     def _pre_llm_call_inject(**kwargs: Any) -> Optional[dict]:
@@ -105,7 +155,7 @@ def register(ctx: Any) -> None:
             parts = ["[cbm context] Indexed projects available for graph queries:"]
             for p in project_list[:5]:
                 name = p.get("name", "?")
-                nodes = p.get("node_count", 0)
+                nodes = p.get("nodes", 0)
                 parts.append(f"  {name}: {nodes} nodes")
             parts.append(
                 "\nUse cbm_search, cbm_trace, cbm_architecture for code exploration. "
