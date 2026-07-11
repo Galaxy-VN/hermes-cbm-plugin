@@ -42,7 +42,7 @@ hermes plugins enable cbm
 ### Manual install
 
 ```bash
-git clone https://github.com/rewasa/hermes-cbm-plugin.git ~/.hermes/plugins/cbm
+git clone https://github.com/Galaxy-VN/hermes-cbm-plugin.git ~/.hermes/plugins/cbm
 hermes plugins enable cbm
 ```
 
