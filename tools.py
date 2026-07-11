@@ -234,16 +234,14 @@ def delete_project(args: dict, **kwargs) -> str:
 
 
 def detect_dead_code(args: dict, **kwargs) -> str:
-    """Find dead code via Cypher query."""
+    """Find dead code via search_graph with degree filter."""
     project = args.get("project")
-    query = (
-        "MATCH (f:Function) "
-        "WHERE NOT EXISTS { (f)<-[:CALLS]-() } "
-        "AND NOT f.is_entry_point "
-        "RETURN f.qualified_name, f.file_path, f.line "
-        "ORDER BY f.file_path"
-    )
-    payload = {"query": query}
+    payload = {
+        "query": "Method",
+        "label": "Method",
+        "max_degree": 0,
+        "limit": args.get("limit", 50),
+    }
     if project:
         payload["project"] = project
-    return _run_cbm({**payload, "_cli_tool": "query_graph"})
+    return _run_cbm({**payload, "_cli_tool": "search_graph"})
