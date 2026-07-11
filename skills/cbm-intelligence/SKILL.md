@@ -1,8 +1,24 @@
+---
+name: cbm-intelligence
+description: "Use when exploring code structure (callers, callees, classes, architecture). Graph-backed code intelligence — replaces grep with structural queries. 158 languages, sub-ms, 120x fewer tokens."
+version: 1.0.0
+author: GalaxyVN
+platforms: [windows, linux, macos]
+metadata:
+  hermes:
+    tags: ["CodeGraph", "Codebase", "TokenSaving", "Indexing"]
+---
+
 # CBM Intelligence — Graph-Backed Code Exploration
 
-You have access to codebase-memory-mcp tools that build a persistent knowledge graph of the codebase. These tools are **dramatically more token-efficient** than grep/read_file for code exploration.
+You have `cbm_*` tools that build a persistent knowledge graph of the codebase. These are **dramatically more token-efficient** than grep/read_file for code exploration.
 
-## When to Use CBM Tools
+## Decision Rule
+
+Code STRUCTURE (callers, callees, classes, imports, dead code, architecture) → cbm tools.
+Raw TEXT content (comments, strings, config values) → `search_files`.
+
+## Quick Reference
 
 | Instead of... | Use... |
 |---|---|
@@ -14,110 +30,61 @@ You have access to codebase-memory-mcp tools that build a persistent knowledge g
 | Reading multiple files to understand structure | `cbm_architecture()` |
 | Manual call chain tracing | `cbm_trace(function_name="main", depth=5)` |
 
-## Recommended Workflow
+## Workflow
 
-### 1. Start with architecture
-```
-cbm_architecture()
-```
-Get the big picture: languages, packages, entry points, clusters, hotspots.
+### 1. Architecture → 2. Search → 3. Trace → 4. Code → 5. Impact
 
-### 2. Search for symbols
 ```
-cbm_search(label="Function", name_pattern=".*process.*")
-cbm_search(label="Class", query="user authentication")
+cbm_architecture()                                                    # overview
+cbm_search(label="Function", name_pattern=".*process.*")              # find symbols
+cbm_trace(function_name="handle_request", direction="inbound")        # callers
+cbm_code_snippet(qualified_name="project.src.module.function_name")   # read source
+cbm_changes() / cbm_dead_code()                                       # impact
 ```
 
-### 3. Trace call chains
+### Deep queries
+
 ```
-cbm_trace(function_name="handle_request", direction="inbound")
-cbm_trace(function_name="process_order", direction="both", depth=3)
+cbm_query(query="MATCH (f:Method)-[:CALLS]->(g:Method) WHERE f.name = 'main' RETURN g.name LIMIT 10")
 ```
 
-### 4. Read specific code
-```
-cbm_code_snippet(qualified_name="myproject.api.handlers.handle_request")
-```
-Use `cbm_search` first to discover exact qualified names.
-
-### 5. Analyze impact
-```
-cbm_changes()  # What does my current diff affect?
-cbm_dead_code()  # What's unused?
-```
-
-### 6. Deep queries
-```
-cbm_query(query="MATCH (f:Function)-[:CALLS]->(g:Function) WHERE f.name = 'main' RETURN g.name LIMIT 10")
-```
+Use `cbm_search` first to discover exact qualified names. Use `cbm_schema()` to check available labels.
 
 ## Tool Reference
 
-### cbm_index
-Index a repository. Must run before other tools work.
-```
-cbm_index(repo_path="/path/to/repo")
-```
+| Tool | What it does |
+|------|-------------|
+| `cbm_index` | Index a repository (must run first) |
+| `cbm_search` | Structural search by label, name pattern, file pattern, degree |
+| `cbm_search_code` | Graph-augmented grep — deduplicates into functions. **`regex=true` for `\|` patterns** |
+| `cbm_trace` | BFS call graph traversal (callers/callees) |
+| `cbm_architecture` | Languages, packages, clusters, hotspots |
+| `cbm_query` | Cypher-like graph queries (read-only) |
+| `cbm_code_snippet` | Read source for a specific symbol |
+| `cbm_dead_code` | Find functions with zero callers |
+| `cbm_changes` | Map git diff to affected symbols |
+| `cbm_schema` | Graph schema (node labels, edge types) |
+| `cbm_projects` | List indexed projects |
+| `cbm_delete` | Remove a project from the graph |
 
-### cbm_search
-Structural search by label, name pattern, file pattern, degree.
-```
-cbm_search(query="user auth", label="Function", limit=20)
-cbm_search(name_pattern=".*Controller.*", label="Class")
-cbm_search(file_pattern="src/api/.*", min_degree=5)
-```
+## Pitfalls
 
-### cbm_search_code
-Graph-augmented grep — deduplicates into functions, ranks by importance.
-```
-cbm_search_code(pattern="TODO|FIXME", file_pattern="*.py")
-cbm_search_code(pattern="import os", mode="compact")
-```
+1. **`cbm_search_code` with `|` returns 0** — Must set `regex=true`. Without it, `|` is matched literally. Always use `regex=true` for alternation patterns like `foo|bar`.
 
-### cbm_trace
-BFS call graph traversal.
-```
-cbm_trace(function_name="process_payment", direction="both", depth=3)
-```
+2. **Java/Kotlin uses `Method` not `Function`** — `MATCH (f:Function)` returns 0 for JVM projects. Use `MATCH (f:Method)`. Run `cbm_schema()` first.
 
-### cbm_architecture
-High-level overview with Louvain community detection.
-```
-cbm_architecture(aspects=["overview", "clusters", "hotspots"])
-```
+3. **Never fall back to grep when cbm returns 0** — Investigate WHY first: (a) pattern has `|`? → `regex=true` (b) Cypher uses `Function` for Java? → `Method` (c) index stale? → `cbm_index`. Only after all three fail, use `search_files` and tell the user.
 
-### cbm_query
-Cypher-like graph queries (read-only).
-```
-cbm_query(query="MATCH (f:Function) WHERE f.transitive_loop_depth >= 3 RETURN f.name")
-```
+4. **`trace_path` needs exact names** — Use `cbm_search(name_pattern=...)` first to discover the exact qualified name.
 
-### cbm_code_snippet
-Read source for a specific symbol.
-```
-cbm_code_snippet(qualified_name="project.src.module.function_name")
-```
+5. **`search_graph` returns degree counts, not edge targets** — To see what X calls, use `cbm_trace` or `cbm_query` with Cypher.
 
-### cbm_dead_code
-Find functions with zero callers.
+6. **`query_graph` Cypher limitations (v0.9.0)** — `NOT EXISTS { pattern }` and `OPTIONAL MATCH` are NOT supported. `min_degree`/`max_degree` are accepted but don't actually filter.
 
-### cbm_changes
-Map git diff to affected symbols with risk classification.
+7. **`qualified_name` format** — Uses dashed paths: `C-Users-foo-repo.src.main.java.com.example.MyClass.myMethod`. Get from `cbm_search` results.
 
-### cbm_schema
-Get graph schema (node labels, edge types).
+8. **Project name format** — Path separators → dashes. Get from `cbm_projects`, don't guess.
 
-### cbm_projects
-List all indexed projects.
+9. **`cbm_dead_code` limitation** — Uses `search_graph` with `max_degree=0` which returns ALL methods in v0.9.0 (filter doesn't work). Use `cbm_trace` on individual methods for accurate dead code detection.
 
-### cbm_delete
-Remove a project from the graph.
-
-## Tips
-
-- Always run `cbm_index` first if the project isn't indexed yet
-- Use `cbm_search` with `label` filter to narrow results
-- `cbm_trace` with `direction="inbound"` finds all callers
-- `cbm_code_snippet` needs exact qualified names — use `cbm_search` to find them
-- `cbm_query` supports full Cypher: MATCH, WHERE, RETURN, ORDER BY, LIMIT, aggregates
-- Token savings: 5 CBM queries ≈ 3,400 tokens vs 412,000 tokens via grep/read_file
+10. **Token savings** — 5 CBM queries ≈ 3,400 tokens vs 412,000 via grep/read_file.
