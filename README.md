@@ -19,16 +19,7 @@ The result: **120x fewer tokens** for code navigation tasks and zero false-posit
 
 ## Prerequisites
 
-Install codebase-memory-mcp:
-
-```bash
-# macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash
-
-# Windows (PowerShell)
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.ps1 -OutFile install.ps1
-.\install.ps1
-```
+~~Install codebase-memory-mcp:~~ **No manual install needed.** The plugin auto-downloads the binary on first use.
 
 ## Installation
 
@@ -39,20 +30,7 @@ hermes plugins install Galaxy-VN/hermes-cbm-plugin
 hermes plugins enable cbm
 ```
 
-### Manual install
-
-```bash
-git clone https://github.com/Galaxy-VN/hermes-cbm-plugin.git ~/.hermes/plugins/cbm
-hermes plugins enable cbm
-```
-
-Or add to `~/.hermes/config.yaml`:
-
-```yaml
-plugins:
-  enabled:
-    - cbm
-```
+That's it. No MCP config, no binary install — the plugin handles everything.
 
 ## Tools (12)
 
@@ -119,12 +97,13 @@ The plugin auto-indexes the current project on session start (git repos only). T
 # by editing __init__.py if needed.
 ```
 
-### Custom binary location
+### Auto-install binary
 
-If `codebase-memory-mcp` is not on PATH, ensure it's in one of:
-- `~/.local/bin/`
-- `~/.cargo/bin/`
-- Or add to PATH in your shell profile
+The plugin downloads `codebase-memory-mcp` from GitHub releases on first use. Binary is stored at:
+- Linux/macOS: `~/.local/bin/codebase-memory-mcp`
+- Windows: `~/.cbm/bin/codebase-memory-mcp.exe`
+
+To use a custom binary, add it to PATH before starting Hermes.
 
 ## Architecture
 

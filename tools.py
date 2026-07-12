@@ -28,15 +28,126 @@ def _find_binary() -> Optional[str]:
     home = os.path.expanduser("~")
     candidates = [
         os.path.join(home, ".local", "bin", "codebase-memory-mcp"),
-        os.path.join(home, ".cargo", "bin", "codebase-memory-mcp"),
-        # npm global
-        os.path.join(home, "node_modules", ".bin", "codebase-memory-mcp"),
+        os.path.join(home, ".local", "bin", "codebase-memory-mcp.exe"),
     ]
     for c in candidates:
         if os.path.isfile(c):
             _BINARY = c
             return _BINARY
 
+    return None
+
+
+def _ensure_binary() -> Optional[str]:
+    """Find or auto-install the codebase-memory-mcp binary."""
+    binary = _find_binary()
+    if binary:
+        return binary
+
+    # Auto-install
+    logger.info("CBM: binary not found, downloading...")
+    try:
+        return _download_binary()
+    except Exception as e:
+        logger.warning("CBM: auto-install failed: %s", e)
+        return None
+
+
+def _download_binary() -> Optional[str]:
+    """Download codebase-memory-mcp binary from GitHub releases."""
+    import platform
+    import zipfile
+    import tarfile
+    import io
+    import stat
+    from urllib.request import urlopen, Request
+
+    system = platform.system().lower()  # windows, linux, darwin
+    machine = platform.machine().lower()  # amd64, x86_64, arm64, aarch64
+
+    if machine in ("x86_64", "amd64"):
+        arch = "amd64"
+    elif machine in ("arm64", "aarch64"):
+        arch = "arm64"
+    else:
+        logger.warning("CBM: unsupported architecture: %s", machine)
+        return None
+
+    if system == "windows":
+        asset = f"codebase-memory-mcp-windows-{arch}.zip"
+        ext = ".zip"
+    elif system == "darwin":
+        asset = f"codebase-memory-mcp-darwin-{arch}.tar.gz"
+        ext = ".tar.gz"
+    elif system == "linux":
+        asset = f"codebase-memory-mcp-linux-{arch}.tar.gz"
+        ext = ".tar.gz"
+    else:
+        logger.warning("CBM: unsupported OS: %s", system)
+        return None
+
+    # Get latest release URL
+    api_url = "https://api.github.com/repos/DeusData/codebase-memory-mcp/releases/latest"
+    req = Request(api_url, headers={"Accept": "application/vnd.github.v3+json"})
+    with urlopen(req, timeout=30) as resp:
+        release = json.loads(resp.read())
+
+    download_url = None
+    for a in release.get("assets", []):
+        if a["name"] == asset:
+            download_url = a["browser_download_url"]
+            break
+
+    if not download_url:
+        logger.warning("CBM: release asset not found: %s", asset)
+        return None
+
+    # Download
+    logger.info("CBM: downloading %s...", asset)
+    req = Request(download_url)
+    with urlopen(req, timeout=120) as resp:
+        data = resp.read()
+
+    # Install to ~/.local/bin/
+    install_dir = os.path.join(os.path.expanduser("~"), ".local", "bin")
+
+    os.makedirs(install_dir, exist_ok=True)
+
+    binary_name = "codebase-memory-mcp.exe" if system == "windows" else "codebase-memory-mcp"
+    dest = os.path.join(install_dir, binary_name)
+
+    # Extract
+    if ext == ".zip":
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            # Find the binary in the zip
+            for name in zf.namelist():
+                if name.endswith(binary_name) or name == binary_name:
+                    with zf.open(name) as src, open(dest, "wb") as dst:
+                        dst.write(src.read())
+                    break
+            else:
+                # Fallback: extract all and look for executable
+                zf.extractall(install_dir)
+    elif ext == ".tar.gz":
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+            for member in tf.getmembers():
+                if member.name.endswith(binary_name) or member.name == binary_name:
+                    src = tf.extractfile(member)
+                    with open(dest, "wb") as dst:
+                        dst.write(src.read())
+                    break
+
+    # Make executable (Unix)
+    if system != "windows":
+        os.chmod(dest, os.stat(dest).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+    if os.path.isfile(dest):
+        global _BINARY
+        _BINARY = dest
+        logger.info("CBM: installed binary to %s", dest)
+        return dest
+
+    logger.warning("CBM: extraction failed, binary not found at %s", dest)
     return None
 
 def _get_project_from_cwd() -> str:
@@ -47,14 +158,10 @@ def _run_cbm(args: dict, timeout: int = 30) -> str:
     """Run a codebase-memory-mcp CLI command and return JSON output."""
     if "project" not in args:
         args["project"] = _get_project_from_cwd()
-    binary = _find_binary()
+    binary = _ensure_binary()
     if not binary:
         return json.dumps({
-            "error": (
-                "codebase-memory-mcp binary not found. Install it:\n"
-                "  curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash\n"
-                "Or add it to PATH."
-            )
+            "error": "codebase-memory-mcp binary not found and auto-install failed."
         })
 
     cli_args = [binary, "cli"]
@@ -88,7 +195,7 @@ def _run_cbm(args: dict, timeout: int = 30) -> str:
 
 def is_available() -> bool:
     """Check if the binary is installed and working."""
-    binary = _find_binary()
+    binary = _ensure_binary()
     if not binary:
         return False
     try:
