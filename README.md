@@ -101,7 +101,7 @@ The plugin auto-indexes the current project on session start (git repos only). T
 
 The plugin downloads `codebase-memory-mcp` from GitHub releases on first use. Binary is stored at:
 - Linux/macOS: `~/.local/bin/codebase-memory-mcp`
-- Windows: `~/.cbm/bin/codebase-memory-mcp.exe`
+- Windows: `~/.local/bin/codebase-memory-mcp.exe`
 
 To use a custom binary, add it to PATH before starting Hermes.
 
