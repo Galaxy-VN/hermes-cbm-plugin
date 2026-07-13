@@ -26,6 +26,7 @@ def _start_ui_server(binary: str, port: int = 9749) -> None:
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            start_new_session=True,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         logger.info("CBM server started (pid %d), UI at http://localhost:%d", _ui_process.pid, port)

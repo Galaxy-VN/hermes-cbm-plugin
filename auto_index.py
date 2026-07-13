@@ -75,15 +75,10 @@ def auto_index_project(cwd: Optional[str] = None) -> Optional[str]:
 
     # Check with list_projects
     try:
-        result = subprocess.run(
-            [binary, "cli", "list_projects"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            env={**os.environ, "CBM_LOG_LEVEL": "warn"},
-        )
-        if result.returncode == 0:
-            projects = json.loads(result.stdout)
+        from .tools import _run_detached
+        rc, out, _ = _run_detached([binary, "cli", "list_projects"], timeout=30)
+        if rc == 0 and out.strip():
+            projects = json.loads(out)
             project_list = projects if isinstance(projects, list) else projects.get("projects", [])
             project_name = _detect_project_name(repo_path)
 

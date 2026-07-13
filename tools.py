@@ -3,8 +3,10 @@ import json
 import logging
 import os
 import shutil
+import signal
 import subprocess
-from typing import Any, Optional
+import tempfile
+from typing import Any, Optional, Tuple
 
 logger = logging.getLogger("cbm")
 
@@ -154,6 +156,56 @@ def _get_project_from_cwd() -> str:
     """Convert CWD to project name: path separators → dashes."""
     return os.getcwd().replace("\\", "-").replace("/", "-").replace(":", "")
 
+def _run_detached(cmd: list, timeout: int = 30, env: Optional[dict] = None) -> Tuple[int, str, str]:
+    """Run a CLI command detached from the parent's pipes.
+
+    The codebase-memory-mcp binary auto-spawns a background MCP server that
+    inherits stdout/stderr. When those are pipes (capture_output), the pipe
+    never reaches EOF, so subprocess.run blocks until timeout on POSIX.
+    Redirecting to temp files and using a new session avoids the hang and
+    lets us kill the whole process group on timeout.
+    """
+    env = env or {**os.environ, "CBM_LOG_LEVEL": "warn"}
+    out_fd, out_path = tempfile.mkstemp(prefix="cbm-out-", suffix=".txt")
+    err_fd, err_path = tempfile.mkstemp(prefix="cbm-err-", suffix=".txt")
+    os.close(out_fd)
+    os.close(err_fd)
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=open(out_path, "w"),
+        stderr=open(err_path, "w"),
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+        env=env,
+    )
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # Kill the whole process group, including the background MCP server
+        # that keeps the inherited descriptors open.
+        try:
+            if hasattr(os, "killpg"):
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            else:
+                proc.kill()
+        except Exception:
+            proc.kill()
+        proc.wait()
+        return (-1, "", f"CBM CLI timed out after {timeout}s")
+    finally:
+        out_file = open(out_path, "r")
+        err_file = open(err_path, "r")
+        stdout = out_file.read()
+        stderr = err_file.read()
+        out_file.close()
+        err_file.close()
+        os.unlink(out_path)
+        os.unlink(err_path)
+
+    return proc.returncode, stdout, stderr
+
+
 def _run_cbm(args: dict, timeout: int = 30) -> str:
     """Run a codebase-memory-mcp CLI command and return JSON output."""
     if "project" not in args:
@@ -173,24 +225,12 @@ def _run_cbm(args: dict, timeout: int = 30) -> str:
 
     cli_args.extend([tool_name, json.dumps(args)])
 
-    try:
-        result = subprocess.run(
-            cli_args,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env={**os.environ, "CBM_LOG_LEVEL": "warn"},
-        )
-        if result.returncode != 0:
-            stderr = result.stderr.strip()
-            return json.dumps({"error": f"CBM CLI error (exit {result.returncode}): {stderr}"})
-        return result.stdout.strip()
-    except subprocess.TimeoutExpired:
-        return json.dumps({"error": f"CBM CLI timed out after {timeout}s"})
-    except FileNotFoundError:
-        return json.dumps({"error": f"Binary not found at: {binary}"})
-    except Exception as e:
-        return json.dumps({"error": f"CBM CLI failed: {e}"})
+    returncode, stdout, stderr = _run_detached(cli_args, timeout=timeout)
+    if returncode == -1:
+        return json.dumps({"error": stderr})
+    if returncode != 0:
+        return json.dumps({"error": f"CBM CLI error (exit {returncode}): {stderr.strip()}"})
+    return stdout.strip()
 
 
 def is_available() -> bool:

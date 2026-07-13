@@ -1,13 +1,12 @@
 """CLI and slash command handlers."""
 import json
 import os
-import subprocess
 from typing import Optional
 
 
 def _handle_cbm_slash(raw_args: str) -> Optional[str]:
     """Handler for /cbm command."""
-    from .tools import _find_binary, is_available
+    from .tools import _find_binary, _run_detached, is_available
 
     argv = raw_args.strip().split()
     if not argv or argv[0] in ("help", "-h", "--help"):
@@ -32,11 +31,11 @@ def _handle_cbm_slash(raw_args: str) -> Optional[str]:
         if binary:
             lines.append(f"  Binary: {binary}")
             try:
-                result = subprocess.run(
-                    [binary, "--version"],
-                    capture_output=True, text=True, timeout=5,
-                )
-                lines.append(f"  Version: {result.stdout.strip()}")
+                rc, out, _ = _run_detached([binary, "--version"], timeout=10)
+                if rc == 0 and out.strip():
+                    lines.append(f"  Version: {out.strip().splitlines()[0]}")
+                else:
+                    lines.append("  Version: unknown")
             except Exception:
                 lines.append("  Version: unknown")
         else:
@@ -45,14 +44,13 @@ def _handle_cbm_slash(raw_args: str) -> Optional[str]:
             return "\n".join(lines)
 
         # Show indexed projects
-        try:
-            result = subprocess.run(
-                [binary, "cli", "list_projects"],
-                capture_output=True, text=True, timeout=10,
-                env={**os.environ, "CBM_LOG_LEVEL": "warn"},
-            )
-            if result.returncode == 0:
-                projects = json.loads(result.stdout)
+        rc, out, err = _run_detached(
+            [binary, "cli", "list_projects"],
+            timeout=30,
+        )
+        if rc == 0 and out.strip():
+            try:
+                projects = json.loads(out)
                 project_list = projects if isinstance(projects, list) else projects.get("projects", [])
                 lines.append(f"  Indexed projects: {len(project_list)}")
                 for p in project_list[:10]:
@@ -60,10 +58,10 @@ def _handle_cbm_slash(raw_args: str) -> Optional[str]:
                     nodes = p.get("nodes", "?")
                     edges = p.get("edges", "?")
                     lines.append(f"    {name}: {nodes} nodes, {edges} edges")
-            else:
-                lines.append("  Projects: unable to list")
-        except Exception as e:
-            lines.append(f"  Projects error: {e}")
+            except Exception:
+                lines.append("  Projects: unable to parse output")
+        else:
+            lines.append(f"  Projects error: {err.strip() or 'command failed (exit %s)' % rc}")
 
         return "\n".join(lines)
 
